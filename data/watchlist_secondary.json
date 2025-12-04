@@ -1,0 +1,30 @@
+{
+  "description": "Watchlist opportunités - Actions momentum avec potentiel breakout",
+  "categories": {
+    "recent_breakouts": {
+      "description": "Actions ayant cassé résistance clé dans les 5 derniers jours",
+      "stocks": []
+    },
+    "earnings_winners": {
+      "description": "Actions avec earnings surprises positives récentes",
+      "stocks": []
+    },
+    "momentum_leaders": {
+      "description": "Actions en tendance haussière forte (RSI 60-80)",
+      "stocks": []
+    },
+    "sector_rotation": {
+      "description": "Actions dans secteurs en rotation haussière",
+      "stocks": []
+    },
+    "high_volume_surge": {
+      "description": "Actions avec volume inhabituel et prix en hausse",
+      "stocks": []
+    }
+  },
+  "total_stocks": 0,
+  "updated": "2025-12-03",
+  "update_frequency": "weekly",
+  "notes": "Cette watchlist sera mise à jour automatiquement par le scanner"
+}
+

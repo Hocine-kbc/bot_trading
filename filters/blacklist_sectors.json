@@ -1,0 +1,40 @@
+{
+  "excluded_sectors": [
+    "Banks",
+    "Insurance",
+    "Vaccines/Biotechs",
+    "REITs",
+    "Utilities"
+  ],
+  "excluded_tickers": [
+    "JPM",
+    "BAC",
+    "WFC",
+    "C",
+    "GS",
+    "MS",
+    "USB",
+    "PNC",
+    "TFC",
+    "BRK.B",
+    "AIG",
+    "MET",
+    "PRU",
+    "AFL",
+    "ALL",
+    "MRNA",
+    "BNTX",
+    "NVAX",
+    "VNQ",
+    "IYR",
+    "SPG",
+    "PSA",
+    "DUK",
+    "NEE",
+    "SO",
+    "AEP"
+  ],
+  "reason": "Volatilité excessive, secteurs défensifs non-momentum, ou exposition indésirable",
+  "updated": "2025-12-03"
+}
+

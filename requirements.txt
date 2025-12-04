@@ -1,0 +1,25 @@
+# Interactive Brokers API
+ib-insync==0.9.86
+
+# Data Analysis
+pandas==2.3.3
+numpy==2.3.5
+
+# HTTP Requests
+requests==2.32.5
+httpx==0.28.1
+
+# Telegram Bot
+python-telegram-bot==22.5
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Date/Time
+pytz==2025.2
+python-dateutil==2.9.0
+
+# Technical Analysis (optional, will add later)
+# ta-lib==0.4.32
+# pandas-ta==0.3.14b0
+

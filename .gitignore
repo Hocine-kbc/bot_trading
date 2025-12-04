@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Logs
+logs/
+*.log
+
+# Fichiers de données sensibles
+data/positions.json
+
+# Variables d'environnement (contient vos clés API)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled Python files
+*.pyc
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+

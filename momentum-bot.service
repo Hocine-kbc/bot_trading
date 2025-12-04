@@ -1,0 +1,18 @@
+[Unit]
+Description=Bot Trading Momentum Actions US
+After=network.target
+
+[Service]
+Type=simple
+User=houhou
+WorkingDirectory=/home/houhou/bot/action_momentum/scripts
+Environment="PATH=/home/houhou/bot/action_momentum/venv/bin"
+ExecStart=/home/houhou/bot/action_momentum/venv/bin/python /home/houhou/bot/action_momentum/scripts/bot.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/home/houhou/bot/action_momentum/logs/bot.log
+StandardError=append:/home/houhou/bot/action_momentum/logs/bot_error.log
+
+[Install]
+WantedBy=multi-user.target
+

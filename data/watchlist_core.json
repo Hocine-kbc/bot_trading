@@ -1,0 +1,91 @@
+{
+  "description": "Leaders sectoriels - Actions de haute qualité avec forte liquidité",
+  "sectors": {
+    "technology": {
+      "etf": "XLK",
+      "stocks": [
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AMD",
+        "META",
+        "GOOGL",
+        "AVGO",
+        "ADBE"
+      ]
+    },
+    "consumer_discretionary": {
+      "etf": "XLY",
+      "stocks": [
+        "AMZN",
+        "TSLA",
+        "HD",
+        "NKE",
+        "SBUX",
+        "MCD",
+        "LOW"
+      ]
+    },
+    "communication": {
+      "etf": "XLC",
+      "stocks": [
+        "DIS",
+        "NFLX",
+        "CMCSA",
+        "T",
+        "TMUS"
+      ]
+    },
+    "healthcare": {
+      "etf": "XLV",
+      "stocks": [
+        "UNH",
+        "JNJ",
+        "LLY",
+        "ABBV",
+        "TMO"
+      ]
+    },
+    "energy": {
+      "etf": "XLE",
+      "stocks": [
+        "XOM",
+        "CVX",
+        "COP",
+        "SLB"
+      ]
+    },
+    "industrials": {
+      "etf": "XLI",
+      "stocks": [
+        "BA",
+        "CAT",
+        "HON",
+        "UPS",
+        "GE"
+      ]
+    },
+    "materials": {
+      "etf": "XLB",
+      "stocks": [
+        "LIN",
+        "APD",
+        "SHW"
+      ]
+    },
+    "consumer_staples": {
+      "etf": "XLP",
+      "stocks": [
+        "PG",
+        "KO",
+        "PEP",
+        "WMT",
+        "COST"
+      ]
+    }
+  },
+  "total_stocks": 50,
+  "updated": "2025-12-03",
+  "update_frequency": "monthly"
+}
+
