@@ -22,18 +22,23 @@ from breakout_detector import BreakoutDetector
 from risk_manager import RiskManager
 from trading_manager import TradingManager
 from telegram_notifier import TelegramNotifier
+from logger import (
+    log_info, log_warning, log_error, log_trade, 
+    log_signal, log_market_status, log_startup, 
+    log_shutdown, log_cycle
+)
 
 
 class MomentumBot:
     """Bot principal de trading momentum"""
     
     def __init__(self, capital: float = 10000):
-        print("\n" + "🤖 "*30)
-        print("BOT ACTIONS US MOMENTUM - INITIALISATION")
-        print("🤖 " * 30 + "\n")
+        log_info("=" * 60)
+        log_info("🤖 BOT ACTIONS US MOMENTUM - INITIALISATION")
+        log_info("=" * 60)
         
         # Initialisation des composants
-        print("📦 Chargement modules...")
+        log_info("📦 Chargement modules...")
         
         self.data_provider = StockDataProvider()
         self.watchlist_manager = WatchlistManager()
@@ -62,30 +67,31 @@ class MomentumBot:
         )
         
         self.running = False
+        self.cycle_count = 0
         
-        print("✅ Modules chargés\n")
+        log_info("✅ Modules chargés")
         
         # Stats
         stats = self.watchlist_manager.get_stats()
-        print(f"📊 Configuration:")
-        print(f"   Capital: ${capital:,.2f}")
-        print(f"   Mode: {'🧪 DRY RUN' if DRY_RUN_MODE else '💰 RÉEL'}")
-        print(f"   Paper Trading: {'✅' if PAPER_TRADING_MODE else '❌'}")
-        print(f"   Watchlist: {stats['total_count']} actions")
-        print(f"   Blacklist: {stats['blacklist_count']} exclus")
-        print()
+        log_startup(
+            capital=capital,
+            dry_run=DRY_RUN_MODE,
+            paper=PAPER_TRADING_MODE,
+            watchlist_count=stats['total_count']
+        )
+        log_info(f"📊 Blacklist: {stats['blacklist_count']} exclus")
     
     def connect(self):
         """Connexion IBKR"""
-        print("🔌 Connexion IBKR...")
+        log_info("🔌 Connexion IBKR...")
         self.data_provider.connect()
-        print("✅ Connecté\n")
+        log_info("✅ Connecté à IBKR")
     
     def disconnect(self):
         """Déconnexion"""
-        print("\n🔌 Déconnexion...")
+        log_info("🔌 Déconnexion...")
         self.data_provider.disconnect()
-        print("✅ Déconnecté")
+        log_info("✅ Déconnecté")
     
     def scan_ticker(self, ticker: str) -> Dict:
         """
@@ -100,9 +106,7 @@ class MomentumBot:
             'score': int
         }
         """
-        print(f"\n{'='*60}")
-        print(f"🔍 SCAN {ticker}")
-        print(f"{'='*60}\n")
+        log_info(f"🔍 SCAN {ticker}")
         
         result = {
             'ticker': ticker,
@@ -119,12 +123,10 @@ class MomentumBot:
         
         if not all_passed:
             failed = self.filters.get_failed_filters(filters_results)
-            print(f"❌ Filtres échoués ({len(failed)}):")
-            for f in failed:
-                print(f"   • {f}")
+            log_info(f"   ❌ {ticker}: Filtres échoués ({len(failed)}): {', '.join(failed)}")
             return result
         
-        print(f"✅ Tous les filtres de base passés")
+        log_info(f"   ✅ {ticker}: Filtres de base passés")
         
         # 2. Détection pattern chandelier
         df = self.data_provider.get_ohlcv(ticker, '5 mins', '1 D')
@@ -132,12 +134,12 @@ class MomentumBot:
             pattern = self.patterns.detect_bullish_pattern(df)
             if pattern:
                 result['pattern'] = pattern
-                print(f"🕯️  Pattern: {pattern['pattern']} ({pattern['confidence']}%)")
+                log_info(f"   🕯️  {ticker}: Pattern {pattern['pattern']} ({pattern['confidence']}%)")
             else:
-                print(f"❌ Pas de pattern haussier détecté")
+                log_info(f"   ❌ {ticker}: Pas de pattern haussier")
                 return result
         else:
-            print(f"❌ Pas de données OHLCV")
+            log_warning(f"   ❌ {ticker}: Pas de données OHLCV")
             return result
         
         # 3. Validation volume du pattern
@@ -147,10 +149,11 @@ class MomentumBot:
         
         is_volume_ok = self.patterns.validate_volume(last_candle, avg_volume)
         if not is_volume_ok:
-            print(f"❌ Volume insuffisant pour pattern")
+            log_info(f"   ❌ {ticker}: Volume insuffisant")
             return result
         
-        print(f"✅ Volume validé ({last_candle['volume']/avg_volume:.2f}x)")
+        volume_ratio = last_candle['volume'] / avg_volume
+        log_info(f"   ✅ {ticker}: Volume validé ({volume_ratio:.2f}x)")
         
         # 4. Détection breakout + orderflow
         is_breakout_valid, breakout_details = self.breakout_detector.validate_breakout_with_orderflow(ticker)
@@ -158,10 +161,10 @@ class MomentumBot:
         
         if not is_breakout_valid:
             reason = breakout_details.get('reason', 'Inconnu')
-            print(f"❌ Breakout non validé: {reason}")
+            log_info(f"   ❌ {ticker}: Breakout non validé - {reason}")
             return result
         
-        print(f"✅ Breakout validé avec orderflow haussier")
+        log_info(f"   ✅ {ticker}: Breakout validé avec orderflow haussier")
         
         # 5. Calcul score global
         score = 0
@@ -174,35 +177,34 @@ class MomentumBot:
         result['score'] = min(100, score)
         result['valid'] = True
         
-        print(f"\n🎯 SIGNAL VALIDÉ - Score: {result['score']}/100")
-        print(f"{'='*60}\n")
+        log_signal(ticker, pattern['pattern'], {
+            'score': result['score'],
+            'volume': f"{volume_ratio:.1f}x"
+        })
         
         return result
     
     def scan_watchlist(self) -> List[Dict]:
         """Scan toute la watchlist"""
-        print("\n" + "📡 "*30)
-        print("SCAN WATCHLIST")
-        print("📡 " * 30 + "\n")
+        log_info("=" * 60)
+        log_info("📡 SCAN WATCHLIST")
+        log_info("=" * 60)
         
         # Récupérer tous les tickers
         all_tickers = self.watchlist_manager.get_all_tickers()
         
-        print(f"📋 {len(all_tickers)} tickers à scanner\n")
+        log_info(f"📋 {len(all_tickers)} tickers à scanner")
         
         valid_signals = []
         
         for i, ticker in enumerate(all_tickers, 1):
-            print(f"[{i}/{len(all_tickers)}] Scan {ticker}...", end=' ')
-            
             try:
                 result = self.scan_ticker(ticker)
                 
                 if result['valid']:
                     valid_signals.append(result)
-                    print(f"✅ SIGNAL")
                     
-                    # Notification optionnelle
+                    # Notification Telegram
                     asyncio.run(
                         self.telegram.notify_signal_detected(
                             ticker,
@@ -210,32 +212,25 @@ class MomentumBot:
                             result['score']
                         )
                     )
-                else:
-                    print(f"❌")
                 
                 time.sleep(1)  # Éviter rate limiting
                 
             except Exception as e:
-                print(f"❌ Erreur: {e}")
+                log_error(f"Erreur scan {ticker}: {e}")
                 continue
         
         # Trier par score
         valid_signals.sort(key=lambda x: x['score'], reverse=True)
         
-        print(f"\n{'='*60}")
-        print(f"📊 RÉSULTATS SCAN")
-        print(f"{'='*60}")
-        print(f"Signaux valides: {len(valid_signals)}/{len(all_tickers)}")
+        log_info(f"📊 RÉSULTATS: {len(valid_signals)}/{len(all_tickers)} signaux valides")
         
         if valid_signals:
-            print(f"\nTop signaux:")
+            log_info("Top signaux:")
             for signal in valid_signals[:5]:
                 ticker = signal['ticker']
                 score = signal['score']
                 pattern = signal['pattern']['pattern']
-                print(f"   {ticker}: {score}/100 ({pattern})")
-        
-        print(f"{'='*60}\n")
+                log_info(f"   {ticker}: {score}/100 ({pattern})")
         
         return valid_signals
     
@@ -243,9 +238,7 @@ class MomentumBot:
         """Exécute un signal validé"""
         ticker = signal['ticker']
         
-        print(f"\n{'='*60}")
-        print(f"💰 EXÉCUTION {ticker}")
-        print(f"{'='*60}\n")
+        log_info(f"💰 EXÉCUTION {ticker}")
         
         success, trade_details = self.trading_manager.enter_position(
             ticker,
@@ -253,59 +246,67 @@ class MomentumBot:
         )
         
         if success:
-            print(f"✅ Position ouverte: {ticker}")
+            price = trade_details.get('entry_price', 0)
+            quantity = trade_details.get('quantity', 0)
+            log_trade("BUY", ticker, price, quantity, reason=f"Score: {signal['score']}")
             return True
         else:
-            print(f"❌ Échec ouverture position: {ticker}")
+            log_warning(f"Échec ouverture position: {ticker}")
             return False
     
     def run_cycle(self):
         """Un cycle complet de trading"""
-        print(f"\n{'🔄 '*30}")
-        print(f"CYCLE TRADING - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'🔄 ' * 30}\n")
+        self.cycle_count += 1
+        
+        log_info("=" * 60)
+        log_info(f"🔄 CYCLE #{self.cycle_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        log_info("=" * 60)
         
         # 1. Vérifier conditions marché
-        print("1️⃣ Vérification conditions marché...")
+        log_info("1️⃣ Vérification conditions marché...")
         can_trade, reason = self.filters.filter_time()
         if not can_trade:
-            print(f"   ❌ {reason}")
+            log_info(f"   ❌ {reason}")
             return
-        print(f"   ✅ Heures de trading")
+        log_info("   ✅ Heures de trading OK")
         
         can_trade, reason = self.filters.filter_market_emotion()
         if not can_trade:
-            print(f"   ❌ {reason}")
+            log_info(f"   ❌ {reason}")
             return
-        print(f"   ✅ Marché favorable")
+        log_info("   ✅ Marché favorable")
         
         # 2. Vérifier limites risque
-        print("\n2️⃣ Vérification risque...")
+        log_info("2️⃣ Vérification risque...")
         can_trade, reason = self.risk_manager.can_trade()
         if not can_trade:
-            print(f"   ❌ {reason}")
+            log_warning(f"Limite risque atteinte: {reason}")
             asyncio.run(self.telegram.notify_pause(reason))
             return
-        print(f"   ✅ Limites risque OK")
+        log_info("   ✅ Limites risque OK")
         
         # 3. Surveiller positions ouvertes
-        print("\n3️⃣ Surveillance positions ouvertes...")
+        log_info("3️⃣ Surveillance positions ouvertes...")
         self.trading_manager.monitor_open_positions()
         open_count = len(self.risk_manager.get_open_positions())
-        print(f"   📊 {open_count} position(s) ouverte(s)")
+        log_info(f"   📊 {open_count} position(s) ouverte(s)")
         
         # 4. Scanner watchlist si capacité disponible
+        opportunities = 0
         if open_count < self.risk_manager.positions.get('max_positions', 5):
-            print("\n4️⃣ Scan watchlist...")
+            log_info("4️⃣ Scan watchlist...")
             signals = self.scan_watchlist()
+            opportunities = len(signals)
             
             # 5. Exécuter meilleur signal
             if signals:
                 best_signal = signals[0]
-                print(f"\n5️⃣ Exécution meilleur signal: {best_signal['ticker']}")
+                log_info(f"5️⃣ Exécution meilleur signal: {best_signal['ticker']}")
                 self.execute_signal(best_signal)
         else:
-            print("\n4️⃣ Capacité max atteinte - Pas de nouveau scan")
+            log_info("4️⃣ Capacité max atteinte - Pas de nouveau scan")
+        
+        log_cycle(self.cycle_count, opportunities, open_count)
     
     def run(self, interval_seconds: int = 300):
         """
@@ -316,9 +317,9 @@ class MomentumBot:
         """
         self.running = True
         
-        print(f"\n{'🚀 '*30}")
-        print(f"BOT DÉMARRÉ - Intervalle {interval_seconds}s")
-        print(f"{'🚀 ' * 30}\n")
+        log_info("🚀 " * 20)
+        log_info(f"BOT DÉMARRÉ - Intervalle {interval_seconds}s")
+        log_info("🚀 " * 20)
         
         asyncio.run(
             self.telegram.send_message(
@@ -329,24 +330,19 @@ class MomentumBot:
         try:
             self.connect()
             
-            cycle_count = 0
-            
             while self.running:
-                cycle_count += 1
-                
                 try:
                     self.run_cycle()
                 except Exception as e:
-                    error_msg = f"Erreur cycle {cycle_count}: {str(e)}"
-                    print(f"\n❌ {error_msg}\n")
-                    asyncio.run(self.telegram.notify_error(error_msg))
+                    log_error(f"Erreur cycle {self.cycle_count}: {str(e)}")
+                    asyncio.run(self.telegram.notify_error(str(e)))
                 
                 # Attendre prochain cycle
-                print(f"\n⏸️  Attente {interval_seconds}s avant prochain cycle...\n")
+                log_info(f"⏸️  Attente {interval_seconds}s avant prochain cycle...")
                 time.sleep(interval_seconds)
         
         except KeyboardInterrupt:
-            print(f"\n\n⛔ Arrêt demandé par utilisateur")
+            log_warning("Arrêt demandé par utilisateur (Ctrl+C)")
         
         finally:
             self.running = False
@@ -354,14 +350,16 @@ class MomentumBot:
             
             # Résumé final
             stats = self.risk_manager.get_statistics()
-            print(f"\n{'📊 '*30}")
-            print(f"RÉSUMÉ FINAL")
-            print(f"{'📊 ' * 30}")
-            print(f"Cycles: {cycle_count}")
-            print(f"Trades: {stats.get('total_trades', 0)}")
-            print(f"Win rate: {stats.get('win_rate', 0):.1f}%")
-            print(f"PnL: ${stats.get('total_pnl', 0):+,.2f}")
-            print(f"{'📊 ' * 30}\n")
+            log_info("=" * 60)
+            log_info("📊 RÉSUMÉ FINAL")
+            log_info("=" * 60)
+            log_info(f"Cycles: {self.cycle_count}")
+            log_info(f"Trades: {stats.get('total_trades', 0)}")
+            log_info(f"Win rate: {stats.get('win_rate', 0):.1f}%")
+            log_info(f"PnL: ${stats.get('total_pnl', 0):+,.2f}")
+            log_info("=" * 60)
+            
+            log_shutdown()
             
             asyncio.run(
                 self.telegram.notify_daily_summary(stats)
@@ -385,4 +383,3 @@ if __name__ == '__main__':
     else:
         # Boucle continue (5 minutes par cycle)
         bot.run(interval_seconds=300)
-

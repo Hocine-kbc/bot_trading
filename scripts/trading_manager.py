@@ -18,6 +18,7 @@ from config import (
     DRY_RUN_MODE,
     SPREAD_MAX_PCT
 )
+from logger import log_info, log_warning, log_error, log_trade
 
 
 class TradingManager:
@@ -56,13 +57,13 @@ class TradingManager:
             # Vérifier risque
             can_trade, reason = self.risk_manager.can_trade()
             if not can_trade:
-                print(f"❌ Impossible de trader: {reason}")
+                log_warning(f"Impossible de trader {ticker}: {reason}")
                 return False, None
             
             # Obtenir prix actuel
             price_data = self.data_provider.get_current_price(ticker)
             if not price_data:
-                print(f"❌ Impossible d'obtenir prix pour {ticker}")
+                log_warning(f"Impossible d'obtenir prix pour {ticker}")
                 return False, None
             
             current_price = price_data['ask']  # Acheter à l'ask
@@ -71,24 +72,23 @@ class TradingManager:
             quantity = self.risk_manager.calculate_position_size(current_price)
             
             if quantity < 1:
-                print(f"❌ Quantité insuffisante pour {ticker}")
+                log_warning(f"Quantité insuffisante pour {ticker}")
                 return False, None
             
             # Calculer SL/TP
             stop_loss, take_profit = self.calculate_stop_take_prices(current_price)
             
-            print(f"\n{'='*60}")
-            print(f"📊 PRÉPARATION ACHAT {ticker}")
-            print(f"{'='*60}")
-            print(f"Prix: ${current_price:.2f}")
-            print(f"Quantité: {quantity}")
-            print(f"Valeur: ${current_price * quantity:,.2f}")
-            print(f"Stop-Loss: ${stop_loss:.2f} (-{STOP_LOSS_PCT*100}%)")
-            print(f"Take-Profit: ${take_profit:.2f} (+{TAKE_PROFIT_PCT*100}%)")
-            print(f"{'='*60}\n")
+            log_info("=" * 60)
+            log_info(f"📊 PRÉPARATION ACHAT {ticker}")
+            log_info("=" * 60)
+            log_info(f"Prix: ${current_price:.2f}")
+            log_info(f"Quantité: {quantity}")
+            log_info(f"Valeur: ${current_price * quantity:,.2f}")
+            log_info(f"Stop-Loss: ${stop_loss:.2f} (-{STOP_LOSS_PCT*100}%)")
+            log_info(f"Take-Profit: ${take_profit:.2f} (+{TAKE_PROFIT_PCT*100}%)")
             
             if DRY_RUN_MODE:
-                print("🧪 MODE DRY RUN - Pas d'ordre réel envoyé")
+                log_info("🧪 MODE DRY RUN - Pas d'ordre réel envoyé")
                 
                 # Simulation
                 trade_details = {
@@ -109,6 +109,8 @@ class TradingManager:
                     take_profit
                 )
                 
+                log_trade("BUY", ticker, current_price, quantity, reason="Dry run")
+                
                 # Notification
                 asyncio.run(
                     self.telegram.notify_entry(
@@ -124,7 +126,7 @@ class TradingManager:
             # ORDRE RÉEL
             contract = self.data_provider.get_contract(ticker)
             if not contract:
-                print(f"❌ Contrat non trouvé pour {ticker}")
+                log_error(f"Contrat non trouvé pour {ticker}")
                 return False, None
             
             # Ordre bracket (entrée + SL + TP)
@@ -156,7 +158,8 @@ class TradingManager:
             for order in bracket:
                 self.ib.placeOrder(contract, order)
             
-            print(f"✅ Ordre bracket placé pour {ticker}")
+            log_info(f"✅ Ordre bracket placé pour {ticker}")
+            log_trade("BUY", ticker, current_price, quantity, reason="Bracket order")
             
             # Ajouter position
             self.risk_manager.add_position(
@@ -189,9 +192,8 @@ class TradingManager:
             return True, trade_details
             
         except Exception as e:
-            error_msg = f"Erreur entrée position {ticker}: {str(e)}"
-            print(f"❌ {error_msg}")
-            asyncio.run(self.telegram.notify_error(error_msg))
+            log_error(f"Erreur entrée position {ticker}: {str(e)}")
+            asyncio.run(self.telegram.notify_error(str(e)))
             return False, None
     
     def exit_position(self, ticker: str, reason: str) -> Tuple[bool, Optional[Dict]]:
@@ -208,38 +210,41 @@ class TradingManager:
             # Récupérer position
             position = self.risk_manager.get_position(ticker)
             if not position:
-                print(f"❌ Position {ticker} non trouvée")
+                log_warning(f"Position {ticker} non trouvée")
                 return False, None
             
             # Prix actuel
             price_data = self.data_provider.get_current_price(ticker)
             if not price_data:
-                print(f"❌ Impossible d'obtenir prix pour {ticker}")
+                log_warning(f"Impossible d'obtenir prix pour {ticker}")
                 return False, None
             
             exit_price = price_data['bid']  # Vendre au bid
             quantity = position['quantity']
             entry_price = position['entry_price']
             
-            print(f"\n{'='*60}")
-            print(f"📉 PRÉPARATION VENTE {ticker}")
-            print(f"{'='*60}")
-            print(f"Raison: {reason}")
-            print(f"Prix entrée: ${entry_price:.2f}")
-            print(f"Prix sortie: ${exit_price:.2f}")
-            print(f"Quantité: {quantity}")
-            print(f"{'='*60}\n")
+            log_info("=" * 60)
+            log_info(f"📉 PRÉPARATION VENTE {ticker}")
+            log_info("=" * 60)
+            log_info(f"Raison: {reason}")
+            log_info(f"Prix entrée: ${entry_price:.2f}")
+            log_info(f"Prix sortie: ${exit_price:.2f}")
+            log_info(f"Quantité: {quantity}")
             
             if DRY_RUN_MODE:
-                print("🧪 MODE DRY RUN - Pas d'ordre réel envoyé")
+                log_info("🧪 MODE DRY RUN - Pas d'ordre réel envoyé")
                 
                 # Fermer position
                 closed = self.risk_manager.close_position(ticker, exit_price, reason)
                 
-                # Notification appropriée
+                # Log du trade
                 pnl = closed['pnl']
                 pnl_pct = closed['pnl_pct']
                 
+                action = "TAKE_PROFIT" if reason in ['TAKE_PROFIT', 'TP'] else "STOP_LOSS" if reason in ['STOP_LOSS', 'SL'] else "SELL"
+                log_trade(action, ticker, exit_price, quantity, pnl=pnl, reason=reason)
+                
+                # Notification appropriée
                 if reason in ['TAKE_PROFIT', 'TP']:
                     asyncio.run(
                         self.telegram.notify_take_profit(
@@ -278,7 +283,7 @@ class TradingManager:
             # ORDRE RÉEL
             contract = self.data_provider.get_contract(ticker)
             if not contract:
-                print(f"❌ Contrat non trouvé pour {ticker}")
+                log_error(f"Contrat non trouvé pour {ticker}")
                 return False, None
             
             # Market order pour sortie rapide
@@ -292,15 +297,19 @@ class TradingManager:
             # Attendre fill (max 30 secondes)
             self.ib.sleep(30)
             
-            print(f"✅ Ordre vente exécuté pour {ticker}")
+            log_info(f"✅ Ordre vente exécuté pour {ticker}")
             
             # Fermer position
             closed = self.risk_manager.close_position(ticker, exit_price, reason)
             
-            # Notifications
+            # Log du trade
             pnl = closed['pnl']
             pnl_pct = closed['pnl_pct']
             
+            action = "TAKE_PROFIT" if reason in ['TAKE_PROFIT', 'TP'] else "STOP_LOSS" if reason in ['STOP_LOSS', 'SL'] else "SELL"
+            log_trade(action, ticker, exit_price, quantity, pnl=pnl, reason=reason)
+            
+            # Notifications
             if reason in ['TAKE_PROFIT', 'TP']:
                 asyncio.run(
                     self.telegram.notify_take_profit(
@@ -337,9 +346,8 @@ class TradingManager:
             return True, closed
             
         except Exception as e:
-            error_msg = f"Erreur sortie position {ticker}: {str(e)}"
-            print(f"❌ {error_msg}")
-            asyncio.run(self.telegram.notify_error(error_msg))
+            log_error(f"Erreur sortie position {ticker}: {str(e)}")
+            asyncio.run(self.telegram.notify_error(str(e)))
             return False, None
     
     def check_emergency_exit_conditions(self, ticker: str) -> Tuple[bool, str]:
@@ -377,14 +385,16 @@ class TradingManager:
             should_exit, reason = self.check_emergency_exit_conditions(ticker)
             
             if should_exit:
-                print(f"⚠️  Sortie urgente détectée pour {ticker}: {reason}")
+                log_warning(f"Sortie urgente détectée pour {ticker}: {reason}")
                 self.exit_position(ticker, f"URGENCE: {reason}")
 
 
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("TEST TRADING MANAGER")
-    print("="*60 + "\n")
+    from logger import log_info
+    
+    log_info("=" * 60)
+    log_info("TEST TRADING MANAGER")
+    log_info("=" * 60)
     
     from stock_data import StockDataProvider
     from risk_manager import RiskManager
@@ -399,9 +409,9 @@ if __name__ == '__main__':
     
     trading_mgr = TradingManager(provider, risk_mgr, telegram, news_mon)
     
-    print("✅ Trading Manager initialisé")
-    print(f"📊 Mode: {'DRY RUN' if DRY_RUN_MODE else 'RÉEL'}")
-    print(f"💰 Capital: ${risk_mgr.capital:,.2f}")
+    log_info("✅ Trading Manager initialisé")
+    log_info(f"📊 Mode: {'DRY RUN' if DRY_RUN_MODE else 'RÉEL'}")
+    log_info(f"💰 Capital: ${risk_mgr.capital:,.2f}")
     
     try:
         provider.connect()
@@ -409,15 +419,14 @@ if __name__ == '__main__':
         # Test calcul SL/TP
         test_price = 150.00
         sl, tp = trading_mgr.calculate_stop_take_prices(test_price)
-        print(f"\n📏 Calculs pour prix ${test_price:.2f}:")
-        print(f"   Stop-Loss: ${sl:.2f} (-{STOP_LOSS_PCT*100}%)")
-        print(f"   Take-Profit: ${tp:.2f} (+{TAKE_PROFIT_PCT*100}%)")
+        log_info(f"📏 Calculs pour prix ${test_price:.2f}:")
+        log_info(f"   Stop-Loss: ${sl:.2f} (-{STOP_LOSS_PCT*100}%)")
+        log_info(f"   Take-Profit: ${tp:.2f} (+{TAKE_PROFIT_PCT*100}%)")
         
         # Test surveillance positions
-        print(f"\n👁️  Surveillance positions ouvertes...")
+        log_info("👁️  Surveillance positions ouvertes...")
         trading_mgr.monitor_open_positions()
-        print(f"   {len(risk_mgr.get_open_positions())} position(s) surveillée(s)")
+        log_info(f"   {len(risk_mgr.get_open_positions())} position(s) surveillée(s)")
         
     finally:
         provider.disconnect()
-
