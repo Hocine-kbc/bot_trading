@@ -22,6 +22,23 @@ import time  # Pour faire des pauses entre les cycles (time.sleep)
 import asyncio  # Pour exécuter du code asynchrone (notifications Telegram)
 from datetime import datetime  # Pour obtenir la date/heure actuelle
 from typing import List, Dict  # Pour typer les variables (List = liste, Dict = dictionnaire)
+from ib_insync import util  # Utilitaires ib_insync pour gérer l'event loop
+
+def run_async(coro):
+    """
+    Exécute une coroutine async de manière sûre.
+    Compatible avec ib_insync qui gère son propre event loop.
+    """
+    try:
+        # Créer un nouvel event loop pour chaque appel
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+    except Exception as e:
+        print(f"❌ Erreur envoi notification: {e}")
 
 # ============================================================
 # IMPORTS - Nos propres modules du bot
@@ -361,7 +378,7 @@ class MomentumBot:
                     valid_signals.append(result)
                     
                     # Envoyer notification Telegram
-                    asyncio.run(
+                    run_async(
                         self.telegram.notify_signal_detected(
                             ticker,
                             result['pattern']['pattern'],
@@ -458,6 +475,9 @@ class MomentumBot:
         can_trade, reason = self.filters.filter_time()
         if not can_trade:
             log_info(f"   ❌ {reason}")
+            # Envoyer notification marché fermé (seulement au 1er cycle)
+            if self.cycle_count == 1:
+                run_async(self.telegram.notify_market_closed(reason))
             return  # Arrêter le cycle
         log_info("   ✅ Heures de trading OK")
         
@@ -468,7 +488,7 @@ class MomentumBot:
             # Envoyer notification marché défavorable (seulement au 1er cycle)
             if self.cycle_count == 1:
                 is_bullish, market_details = self.market_analyzer.is_market_bullish()
-                asyncio.run(self.telegram.notify_market_unfavorable(market_details))
+                run_async(self.telegram.notify_market_unfavorable(market_details))
             return
         log_info("   ✅ Marché favorable")
         
@@ -482,7 +502,7 @@ class MomentumBot:
         if not can_trade:
             log_warning(f"Limite risque atteinte: {reason}")
             # Envoyer notification de pause
-            asyncio.run(self.telegram.notify_pause(reason))
+            run_async(self.telegram.notify_pause(reason))
             return
         log_info("   ✅ Limites risque OK")
         
@@ -551,11 +571,11 @@ class MomentumBot:
             self.connect()
             
             # Envoyer notification Telegram de démarrage (après connexion réussie)
-            asyncio.run(
+            run_async(
                 self.telegram.notify_bot_started(
                     capital=self.risk_manager.positions.get('capital', 10000),
                     dry_run=DRY_RUN_MODE,
-                    watchlist_count=len(self.watchlist_manager.get_watchlist())
+                    watchlist_count=len(self.watchlist_manager.core_watchlist)
                 )
             )
             
@@ -568,7 +588,7 @@ class MomentumBot:
                 except Exception as e:
                     # Si erreur pendant le cycle, la logger et continuer
                     log_error(f"Erreur cycle {self.cycle_count}: {str(e)}")
-                    asyncio.run(self.telegram.notify_error(str(e)))
+                    run_async(self.telegram.notify_error(str(e)))
                 
                 # Attendre avant le prochain cycle
                 log_info(f"⏸️  Attente {interval_seconds}s avant prochain cycle...")
@@ -598,7 +618,7 @@ class MomentumBot:
             log_shutdown()
             
             # Envoyer résumé sur Telegram
-            asyncio.run(
+            run_async(
                 self.telegram.notify_daily_summary(stats)
             )
 

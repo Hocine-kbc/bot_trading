@@ -391,6 +391,26 @@ Le bot est en pause et ne prendra plus de nouvelles positions.
         
         await self.send_message(message)
     
+    async def notify_market_closed(self, reason: str):
+        """
+        Notification MARCHÉ FERMÉ
+        Envoyée quand le bot détecte que le marché US est fermé
+        """
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        
+        message = f"""
+🌙 **MARCHÉ FERMÉ** 🌙
+
+{reason}
+
+Le bot attend l'ouverture du marché US.
+📅 Horaires: 15h30 - 22h00 (Paris)
+
+⏰ {timestamp}
+"""
+        
+        await self.send_message(message)
+    
     async def notify_signal_detected(self, ticker: str, pattern: str, confidence: int):
         """
         Notification SIGNAL DÉTECTÉ - Envoyée quand un pattern est repéré
