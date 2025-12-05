@@ -334,6 +334,63 @@ Le bot est en pause et ne prendra plus de nouvelles positions.
         
         await self.send_message(message)
     
+    async def notify_bot_started(self, capital: float, dry_run: bool, watchlist_count: int):
+        """
+        Notification DÉMARRAGE DU BOT
+        Envoyée quand le bot se connecte avec succès à IBKR
+        """
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        mode = "🧪 DRY RUN (simulation)" if dry_run else "💰 RÉEL"
+        
+        message = f"""
+🤖 **BOT DÉMARRÉ** 🤖
+
+**Mode**: {mode}
+**Capital**: ${capital:,.2f}
+**Watchlist**: {watchlist_count} actions
+
+✅ Connexion IBKR OK
+✅ Telegram OK
+
+⏰ {timestamp}
+"""
+        
+        await self.send_message(message)
+    
+    async def notify_market_unfavorable(self, details: dict):
+        """
+        Notification MARCHÉ DÉFAVORABLE
+        Envoyée quand les conditions de marché ne permettent pas de trader
+        """
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        
+        # Extraire les infos
+        spy = details.get('spy', {})
+        qqq = details.get('qqq', {})
+        vix = details.get('vix', {})
+        
+        spy_change = spy.get('change_pct', 0) if spy else 0
+        qqq_change = qqq.get('change_pct', 0) if qqq else 0
+        vix_level = vix.get('level', 20) if vix else 20
+        
+        spy_emoji = "✅" if spy.get('is_bullish', False) else "❌"
+        qqq_emoji = "✅" if qqq.get('is_bullish', False) else "❌"
+        vix_emoji = "✅" if vix.get('is_favorable', True) else "❌"
+        
+        message = f"""
+📊 **MARCHÉ DÉFAVORABLE** 📊
+
+{spy_emoji} SPY: {spy_change:+.2f}%
+{qqq_emoji} QQQ: {qqq_change:+.2f}%
+{vix_emoji} VIX: {vix_level:.1f}
+
+⏸️ Le bot attend des conditions favorables.
+
+⏰ {timestamp}
+"""
+        
+        await self.send_message(message)
+    
     async def notify_signal_detected(self, ticker: str, pattern: str, confidence: int):
         """
         Notification SIGNAL DÉTECTÉ - Envoyée quand un pattern est repéré
@@ -404,7 +461,7 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("TEST TELEGRAM NOTIFIER")
     print("="*60 + "\n")
-    
+    ########################### ENVOI DE MESSAGE TELEGRAME POUR TESTER ############################
     async def test_notifications():
         """
         Fonction de test qui envoie plusieurs notifications
